@@ -70,18 +70,18 @@ const fetchRepositoryByName=async (req,res)=>{
 
     const createRepo=async(req,res)=>{
         const {owner , name ,issues,content ,description,visibility}=req.body;
-        
+       
 
         try{
 
             if(!name){
                 return res.status(400).json({error:"Repository name is required! "})
             }
-            const repo=await Repository.findOne({name});
+            const repo=await Repository.findOne({name,owner});
             if(repo){
                 return res.status(400).json({error:"Repository name is already in use "})
-
-
+                
+                
             }
             if(!mongoose.Types.ObjectId.isValid(owner)){
                 return res.status(400).json({error:"Invalid user ID! "});
@@ -94,6 +94,7 @@ const fetchRepositoryByName=async (req,res)=>{
                 content,
                 visibility
             });
+           
             const result=await newRepository.save();
           const user=  await User.findById(owner);
           user.repositories.push(result._id);
