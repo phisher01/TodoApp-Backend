@@ -1,220 +1,188 @@
 
 const jwt=require("jsonwebtoken");
 const bcrypt=require("bcryptjs");
-// const {MongoClient}=require("mongodb");
+
 const User=require("../models/userModel")
 
-    const uri=process.env.MONGODB_URI;
-    // let client;
-    // async function  connectClient() {
-    //     if(!client){
-    //         client=  new MongoClient(uri,{
-    //             useNewUrlParser:true,
-    //             useUnifiedTopology:true
-    //         });
-    //         await   client.connect();
-            
-    //     }
+    
+//     const getAllUsers=async(req,res)=>{
+       
+//         try{
+//             const users=await User.find({});
+//             res.json(users);      
+//         }catch(err){
+//             console.error("Error during fetching",err);
+//             res.status(500).send("Server Error");
         
-    // }
-    
-
-    const makeStar=async (req,res)=>{
-      
-
-        const {rid,uid}=req.params;
-        try{
-
-            
-            const user=await  User.findById(uid);
-            if(!user.starRepos.includes(rid)){
-
-                user.starRepos.push(rid);
-            }else{
-                user.starRepos=user.starRepos.filter((id)=>{return id!=rid})
-            }
-
-            await user.save();
-            
+//         }
+// }
 
 
-            res.json({message:"made repo starred for user"});
-            
-        }catch(err){
-            res.status(500).json("Server Error");
-        }
-    
-    
-    
-    
+const signup = async (req, res) => {
+  const { name, email, password, country } = req.body;
+  try {
+    // 1️⃣ Check for existing user by email
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ message: "User already exists" });
     }
 
-    const getAllUsers=async(req,res)=>{
-       
-        try{
-            const users=await User.find({});
-            res.json(users);      
-        }catch(err){
-            console.error("Error during fetching",err);
-            res.status(500).send("Server Error");
-        
-        }
-}
+    // 2️⃣ Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-const signup= async (req,res)=>{
-    const {username,password,email}=req.body;
-    try{
-        
-       
-       
-        const user=await User.findOne({$or:[{username},{email}]});
-        if(user){
-            return   res.status(400).json({message:"User already exists"});
-        }
-        
-        
+    // 3️⃣ Create & save the new user
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      country,
+      projects: []   // start with no projects
+    });
+    await newUser.save();
 
-        const salt=await bcrypt.genSalt(10);
-        const hashedPassword=await bcrypt.hash(password,salt);
+    // 4️⃣ Sign JWT
+    const token = jwt.sign(
+      { id: newUser._id },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: '1h' }
+    );
+
+    // 5️⃣ Respond with token & basic user info
+    res.status(201).json({
+      token,
+      userId: newUser._id
     
-   const newuser= new User({
-    username,
-password:hashedPassword,
-email
-
-});
-await newuser.save();
-
-// const result=await usersCollection.insertOne(newUser);
-// console.log(result);
-
-const token=jwt.sign({id:newuser._id}, process.env.JWT_SECRET_KEY,{expiresIn:"1h"});
-// const token=jwt.sign({id:user.insertId}, process.env.JWT_SECRET_KEY,{expiresIn:"1h"});
-res.json({token,userId:newuser._id});
-
-
-
-
-
-
-    
-}catch(err){
-    console.error("Error during Singup:",err.message);
-    res.status(500).send("Server Error");
-    
-    
-}
-}
-const login=async (req,res)=>{
-    const {email,password}=req.body;
-    
-    try{
-        const user=await User.findOne({email});
-        if(!user){
-           return  res.status(404).json({message:"User not found for this email"});
-        }
-      
-        const isMatch= await bcrypt.compare(password,user.password);
-        if(!isMatch){
-            return res.status(404).json({message:"Wrong Password Enter"});
-        }
-        
-        const token=jwt.sign({id:user._id}, process.env.JWT_SECRET_KEY,{expiresIn:"1h"});
-        res.json({token,userId:user._id});
-        
-        
-    }catch(err){
-        console.error("Error during login",err);
-        res.status(500).send("Server Error");
-    }}  
-    
-    const   getUserProfile=async (req,res)=>{
-        
-        
-        const currentID=req.params.id;
-        try{
-            const user=await User.findById(currentID).populate("starRepos");
-            if(!user){
-                return res.status(404).json({message:"User not found"});
-                
-            }
-            res.json(user);
-        }catch(err){
-            console.error("Error during fetching",err);
-            res.status(500).send("Server Error");   
-        }
-        
-        
+  });
+  } catch (err) {   
+    console.error("Error during signup:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // 1️⃣ Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found for this email" });
     }
-    const updateUserProfile=async(req,res)=>{
-        
-        
-        const currentID=req.params.id;
-        const{email,password}=req.body;
-        try{
-            const user=await  User.findOne({email});
-            if(user){
-                return res.status(400).json({message:"Email already has been used"});
 
-            }
-            let updateFields={
-                email,
-            }
-            if(password){
-                const salt=await bcrypt.genSalt(10);
-                const hashedPassword=await bcrypt.hash(password,salt);
-                updateFields.password=hashedPassword;
+    // 2️⃣ Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Wrong password entered" });
+    }
+
+    // 3️⃣ Sign JWT with user ID
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: '1h' }
+    );
+
+    // 4️⃣ Respond with token and user info
+    res.json({
+      token,
+      userId:user._id
+    });
+  } catch (err) {
+    console.error("Error during login:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+    
+
+    const getUserProfile = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id)
+      .select('-password')             // exclude the hashed password
+      .populate({
+        path: 'projects',
+        select: 'title description pendingTasks completedTasks createdAt'
+      });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Error fetching user profile:', err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+//     const updateUserProfile=async(req,res)=>{
+        
+        
+//         const currentID=req.params.id;
+//         const{email,password}=req.body;
+//         try{
+//             const user=await  User.findOne({email});
+//             if(user){
+//                 return res.status(400).json({message:"Email already has been used"});
+
+//             }
+//             let updateFields={
+//                 email,  
+//             }
+//             if(password){
+//                 const salt=await bcrypt.genSalt(10);
+//                 const hashedPassword=await bcrypt.hash(password,salt);
+//                 updateFields.password=hashedPassword;
                 
                 
-            }
-            const result=await User.findByIdAndUpdate(currentID,{$set:updateFields},{new:true});
+//             }
+//             const result=await User.findByIdAndUpdate(currentID,{$set:updateFields},{new:true});
          
-            if(!result){
+//             if(!result){
                 
-                return res.status(404).json({message:"User not found"});
-            }
+//                 return res.status(404).json({message:"User not found"});
+//             }
            
-            res.send(result);
+//             res.send(result);
             
-        }catch(err){
+//         }catch(err){
             
-            console.error("Error during updating",err);
-            res.status(500).send("Server Error");
+//             console.error("Error during updating",err);
+//             res.status(500).send("Server Error");
     
             
-        }
+//         }
     
     
-}
-const deleteUserProfile=async(req,res)=>{
-    const currentID=req.params.id;
-    try{
+// }
+// const deleteUserProfile=async(req,res)=>{
+//     const currentID=req.params.id;
+//     try{
             
        
-        const result=await User.findByIdAndDelete(currentID);
-        if(!result){
+//         const result=await User.findByIdAndDelete(currentID);
+//         if(!result){
             
-            return res.status(404).json({message:"User not found"});
-        }
-        res.json({message:"User Profile Deleted"});
+//             return res.status(404).json({message:"User not found"});
+//         }
+//         res.json({message:"User Profile Deleted"});
         
-    }catch(err){
+//     }catch(err){
         
-        console.error("Error during deleti  ng",err);
-        res.status(500).send("Server Error");
+//         console.error("Error during deleti  ng",err);
+//         res.status(500).send("Server Error");
 
         
-    }
+//     }
 
 
-}
+// }
 module.exports={
-    getAllUsers,
+    // getAllUsers,
     signup,
     login,
     getUserProfile,
-    updateUserProfile,
-    makeStar,
-    deleteUserProfile,
+    // updateUserProfile,
+    // makeStar,
+    // deleteUserProfile,
 
 };
