@@ -4,6 +4,16 @@ A full-stack To-Do List application built using MongoDB, Express.js, React.js, a
 🚀 Live Demo
 🔗 Frontend (Vercel): https://todo-app-frontend-drab.vercel.app
 
+🔐 Test Login Credentials
+
+To explore the application without registering:
+
+Email: gsgagan2003@gmail.com
+
+Password: Gagan@123
+
+These credentials are for demo/testing purposes only.
+
 🧑‍💻 How to Run the App Locally
 
 1️⃣ Clone the repositories
