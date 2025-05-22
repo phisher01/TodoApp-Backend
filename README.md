@@ -51,14 +51,14 @@ Backend .env contains:
 
 PORT=3000
 
-MONGO_URI=your_mongo_uri
+MONGO_URI
 
-JWT_SECRET=your_jwt_secret
+JWT_SECRET
 
 Frontend .env contains:
 
 
-VITE_API_BASE_URL=http://localhost:3000
+VITE_API_BASE_URL
 
 4️⃣ Run the applications
 
