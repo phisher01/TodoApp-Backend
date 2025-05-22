@@ -50,7 +50,7 @@ VITE_API_BASE_URL=http://localhost:3000
 
 Backend
 
-npm run dev
+node index.js
 
 Runs at: http://localhost:3000
 
