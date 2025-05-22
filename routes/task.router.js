@@ -1,14 +1,28 @@
+const express = require("express");
+const taskController = require("../controllers/taskController");
+const taskRouter = express.Router();
 
 
-const express=require("express");
-const taskController=require("../controllers/taskController");
-const taskRouter=express.Router();
+taskRouter.post("/tasks", taskController.createTask);
 
-taskRouter.post('/projects/:projectId/tasks',  taskController.createTask);
 
-taskRouter.get('/projects/:projectId/tasks',  taskController.getTasksByProject);
-taskRouter.put('/tasks/:taskId',  taskController.updateTask);
-taskRouter.delete('/tasks/:taskId',  taskController.deleteTask);
-taskRouter.get('/tasks/:taskId',  taskController.getTaskById);
+taskRouter.get('/users/:userId/tasks', taskController.getTasksByUser);
 
-module.exports =taskRouter;
+
+
+taskRouter.put("/tasks/:taskId", taskController.updateTask);
+
+
+taskRouter.patch("/tasks/:taskId/mark-done", taskController.markAsDone);
+
+
+taskRouter.delete("/tasks/:taskId", taskController.deleteTask);
+
+
+taskRouter.get("/tasks/:taskId", taskController.getTaskById);
+
+taskRouter.get('/users/:userId/tasks/pending', taskController.getPendingTasks);
+taskRouter.get('/users/:userId/tasks/completed', taskController.getCompletedTasks);
+
+
+module.exports = taskRouter;

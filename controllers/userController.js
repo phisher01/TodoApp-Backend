@@ -4,185 +4,106 @@ const bcrypt=require("bcryptjs");
 
 const User=require("../models/userModel")
 
-    
-//     const getAllUsers=async(req,res)=>{
-       
-//         try{
-//             const users=await User.find({});
-//             res.json(users);      
-//         }catch(err){
-//             console.error("Error during fetching",err);
-//             res.status(500).send("Server Error");
-        
-//         }
-// }
-
 
 const signup = async (req, res) => {
-  const { name, email, password, country } = req.body;
+  const { username, email, password } = req.body;
   try {
-    // 1️⃣ Check for existing user by email
-    const existing = await User.findOne({ email });
+   
+    let existing = await User.findOne({ email });
     if (existing) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(400).json({ message: "Email already registered" });
+    }
+    existing = await User.findOne({ username });
+    if (existing) {
+      return res.status(400).json({ message: "Username already taken" });
     }
 
-    // 2️⃣ Hash password
+   
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3️⃣ Create & save the new user
+   
     const newUser = new User({
-      name,
+      username,
       email,
-      password: hashedPassword,
-      country,
-      projects: []   // start with no projects
+      password: hashedPassword
     });
     await newUser.save();
 
-    // 4️⃣ Sign JWT
+ 
     const token = jwt.sign(
       { id: newUser._id },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: '1h' }
+      { expiresIn: "1h" }
     );
 
-    // 5️⃣ Respond with token & basic user info
+    
     res.status(201).json({
       token,
       userId: newUser._id
-    
-  });
-  } catch (err) {   
+      
+    });
+  } catch (err) {
     console.error("Error during signup:", err);
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    // 1️⃣ Find user by email
+    
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "User not found for this email" });
+      return res.status(404).json({ message: "No account with this email" });
     }
 
-    // 2️⃣ Check password
+  
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Wrong password entered" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // 3️⃣ Sign JWT with user ID
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: '1h' }
+      { expiresIn: "1h" }
     );
 
-    // 4️⃣ Respond with token and user info
-    res.json({
+    
+    res.json({  
       token,
-      userId:user._id
+      userId:user._id 
     });
   } catch (err) {
     console.error("Error during login:", err);
     res.status(500).json({ message: "Server Error" });
   }
 };
-    
 
-    const getUserProfile = async (req, res) => {
+const getUserProfile = async (req, res) => {
   const { id } = req.params;
   try {
-    const user = await User.findById(id)
-      .select('-password')             // exclude the hashed password
-      .populate({
-        path: 'projects',
-        select: 'title description pendingTasks completedTasks createdAt'
-      });
-
+    const user = await User.findById(id).select("-password");
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    res.json(user);
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      taskStats: user.taskStats
+    });
   } catch (err) {
-    console.error('Error fetching user profile:', err);
-    res.status(500).json({ message: 'Server Error' });
+    console.error("Error fetching user profile:", err);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-//     const updateUserProfile=async(req,res)=>{
-        
-        
-//         const currentID=req.params.id;
-//         const{email,password}=req.body;
-//         try{
-//             const user=await  User.findOne({email});
-//             if(user){
-//                 return res.status(400).json({message:"Email already has been used"});
-
-//             }
-//             let updateFields={
-//                 email,  
-//             }
-//             if(password){
-//                 const salt=await bcrypt.genSalt(10);
-//                 const hashedPassword=await bcrypt.hash(password,salt);
-//                 updateFields.password=hashedPassword;
-                
-                
-//             }
-//             const result=await User.findByIdAndUpdate(currentID,{$set:updateFields},{new:true});
-         
-//             if(!result){
-                
-//                 return res.status(404).json({message:"User not found"});
-//             }
-           
-//             res.send(result);
-            
-//         }catch(err){
-            
-//             console.error("Error during updating",err);
-//             res.status(500).send("Server Error");
-    
-            
-//         }
-    
-    
-// }
-// const deleteUserProfile=async(req,res)=>{
-//     const currentID=req.params.id;
-//     try{
-            
-       
-//         const result=await User.findByIdAndDelete(currentID);
-//         if(!result){
-            
-//             return res.status(404).json({message:"User not found"});
-//         }
-//         res.json({message:"User Profile Deleted"});
-        
-//     }catch(err){
-        
-//         console.error("Error during deleti  ng",err);
-//         res.status(500).send("Server Error");
-
-        
-//     }
-
-
-// }
-module.exports={
-    // getAllUsers,
-    signup,
-    login,
-    getUserProfile,
-    // updateUserProfile,
-    // makeStar,
-    // deleteUserProfile,
-
+module.exports = {
+  signup,
+  login,
+  getUserProfile
 };

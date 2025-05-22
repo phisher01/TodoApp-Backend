@@ -1,111 +1,134 @@
-// controllers/tasks.js
-const Task = require('../models/taskModel.js');
-const Project = require('../models/projectModel.js');
+const Task = require("../models/taskModel");
+const User = require("../models/userModel");
 
-// Create a new task under a specific project
 exports.createTask = async (req, res) => {
+  const { userId, title, description } = req.body;
+
   try {
-    const { projectId } = req.params;
-    const { title, description } = req.body;
+    const task = await Task.create({ userId, title, description });
 
-    // Create the task (completedAt will be set via schema setter)
-    const task = await Task.create({
-      title,
-      description,
-      project: projectId
+  
+    await User.findByIdAndUpdate(userId, {
+      $inc: { "taskStats.total": 1, "taskStats.pending": 1 }
     });
-
-    // Increment pendingTasks counter on the project
-    await Project.findByIdAndUpdate(
-      projectId,
-      { $inc: { pendingTasks: 1 } }
-    );
 
     res.status(201).json(task);
   } catch (err) {
-    console.error('Error creating task:', err);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ error: "Failed to create task" });
   }
 };
 
-// Get all tasks for a given project
-exports.getTasksByProject = async (req, res) => {
-  try {
-    const { projectId } = req.params;
-    const tasks = await Task.find({ project: projectId })
-      .sort({ createdAt: -1 });
-    res.json(tasks);
-  } catch (err) {
-    console.error('Error fetching tasks:', err);
-    res.status(500).json({ message: 'Server Error' });
-  }
-};
 
-// Update a specific task
-exports.updateTask = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { title, description, status } = req.body;
+exports.getTaskById = async (req, res) => {
+  const { taskId } = req.params;
 
+  try {
     const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ message: 'Task not found' });
+    res.status(200).json(task);
+  } catch (err) {
+    res.status(500).json({ error: "Task not found" });
+  }
+};
 
-    // Track status change for counter updates
-    const prevStatus = task.status;
 
-    // Update fields
-    if (title !== undefined)       task.title = title;
-    if (description !== undefined) task.description = description;
-    if (status !== undefined)      task.status = status;
+exports.getTasksByUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const tasks = await Task.find({ userId });
+    res.status(200).json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get tasks" });
+  }
+};
+
+
+exports.updateTask = async (req, res) => {
+  const { taskId } = req.params;
+  const { title, description } = req.body;
+
+  try {
+    const task = await Task.findByIdAndUpdate(
+      taskId,
+      { title, description},
+      { new: true }
+    );
+    res.status(200).json(task);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update task" });
+  }
+};
+exports.markAsDone = async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    if (task.status === "completed") {
+      task.status = "pending";
+      await User.findByIdAndUpdate(task.userId, {
+        $inc: { "taskStats.completed": -1, "taskStats.pending": 1 }
+      });
+    }
+    else{
+      task.status = "completed";
+      await User.findByIdAndUpdate(task.userId, {
+        $inc: { "taskStats.completed": 1, "taskStats.pending": -1 }
+      });
+
+      }
+      
 
     await task.save();
 
-    // If status changed, update project counters
-    if (status && status !== prevStatus) {
-      const inc = {};
-      if (prevStatus !== 'Completed' && status === 'Completed') {
-        inc.completedTasks = 1;
-        inc.pendingTasks = -1;
-      } else if (prevStatus === 'Completed' && status !== 'Completed') {
-        inc.completedTasks = -1;
-        inc.pendingTasks = 1;
-      }
-      if (Object.keys(inc).length) {
-        await Project.findByIdAndUpdate(task.project, { $inc: inc });
-      }
-    }
 
-    res.json(task);
+
+    res.status(200).json({ message: "Task is toggled" });
   } catch (err) {
-    console.error('Error updating task:', err);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ error: "Failed to mark task as done" });
   }
 };
-  exports.getTaskById = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ message: 'Task not found' });
-    res.json(task);
-  } catch (err) {
-    console.error('Error fetching task by ID:', err);
-    res.status(500).json({ message: 'Server Error' });
-  }
-};
-// Delete a specific task
+
 exports.deleteTask = async (req, res) => {
+  const { taskId } = req.params;
+
   try {
-    const { taskId } = req.params;
     const task = await Task.findByIdAndDelete(taskId);
-    if (!task) return res.status(404).json({ message: 'Task not found' });
+    if (!task) return res.status(404).json({ error: "Task not found" });
 
-    // Decrement the appropriate counter on the project
-    const field = task.status === 'Completed' ? 'completedTasks' : 'pendingTasks';
-    await Project.findByIdAndUpdate(task.project, { $inc: { [field]: -1 } });
+   
+    const field = task.status === "completed" ? "completed" : "pending";
+    await User.findByIdAndUpdate(task.userId, {
+      $inc: { [`taskStats.${field}`]: -1, "taskStats.total": -1 }
+    });
 
-    res.sendStatus(204);
+    res.status(200).json({ message: "Task deleted successfully" });
   } catch (err) {
-    console.error('Error deleting task:', err);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ error: "Failed to delete task" });
   }
 };
+
+exports.getPendingTasks = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const tasks = await Task.find({ userId, status: "pending" });
+    res.status(200).json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch pending tasks" });
+  }
+};
+
+
+exports.getCompletedTasks = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const tasks = await Task.find({ userId, status: "completed" });
+    res.status(200).json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch completed tasks" });
+  }
+};
+
