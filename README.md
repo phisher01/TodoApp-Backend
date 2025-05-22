@@ -49,7 +49,7 @@ Just ensure:
 Backend .env contains:
 
 
-PORT=3000
+PORT
 
 MONGO_URI
 
